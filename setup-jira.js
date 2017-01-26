@@ -1,0 +1,256 @@
+const casper = require('casper').create();
+casper.on('error', function (err) {
+  console.log('An error occurred', err);
+});
+
+
+const config = casper.cli.args[0];
+const settings = JSON.parse(config);
+
+function assert(cond, message) {
+  if (!cond) {
+    console.log(message);
+    throw new Error('Assertion failed: ' + message);
+  }
+}
+
+
+
+if (!settings || !settings.url) {
+  console.log('Missing settings');
+  throw new Error('Missing settings');
+}
+console.log('Will connect to the JIRA instance running at ' + settings.url);
+
+casper.start(settings.url);
+casper.then(function () {
+  const url = this.getCurrentUrl();
+  if (url.match(/.*\/secure\/SetupMode!default\.jspa$/)) {
+    setupDatabase();
+  } else if (url.match(/.*\/secure\/SetupApplicationProperties!default\.jspa$/)) {
+    setupApplicationProperties();
+  } else if (url.match(/\/secure\/SetupAdminAccount!default\.jspa$/)) {
+    setupAdminAccount();
+  } else if (url.match(/\/secure\/Dashboard\.jspa$/)) {
+    this.echo('This jira instance is already set up, did not change the configuration.')
+  } else {
+    assert(false, 'Invalid initial state of jira: ' + url);
+  }
+});
+
+function setupDatabase() {
+  casper.then(function () {
+    assert(
+      this.getCurrentUrl().match(/.*\/secure\/SetupMode!default\.jspa$/),
+      'JIRA is already set up (' + this.getCurrentUrl() + ')');
+    assert(
+      this.exists('div[data-choice-value=classic]'),
+      'Unexpected setup screen'
+    );
+    this.click('div[data-choice-value=classic]');
+  });
+
+  casper.then(function () {
+    this.click('#jira-setup-mode-submit');
+    this.waitForUrl(/\/secure\/SetupDatabase!default\.jspa$/);
+  });
+
+  casper.then(function () {
+    this.echo('Setting up the database...');
+    this.click('#jira-setup-database-field-database-external');
+    this.fillSelectors('form#jira-setup-database', {
+      '#jira-setup-database-field-database-type-field': settings.db.type
+    });
+    this.fill('form#jira-setup-database', {
+      'jdbcHostname': settings.db.host,
+      'jdbcPort': settings.db.port,
+      'jdbcDatabase': settings.db.database,
+      'jdbcUsername': settings.db.user,
+      'jdbcPassword': settings.db.password
+    });
+    this.click('#jira-setup-database-test-connection');
+  });
+
+  casper.then(function () {
+    this.waitForSelectorTextChange('.jira-setup-global-messages', function () {
+      this.capture('protocol-1-db.png');
+      const text = this.fetchText('.jira-setup-global-messages');
+      assert(
+        text === 'The database connection test was successful.',
+        'Could not connect to the database: ' + text);
+      this.click('#jira-setup-database-submit');
+    });
+  });
+
+  casper.then(function () {
+    this.waitForUrl(/\/secure\/SetupApplicationProperties!default\.jspa$/, function () {
+    }, 120000);
+  });
+
+  setupApplicationProperties();
+}
+
+function setupApplicationProperties() {
+  casper.then(function () {
+    assert(
+      this.getCurrentUrl().match(/.*\/secure\/SetupApplicationProperties!default\.jspa$/),
+      'Wrong state to set application properties (' + this.getCurrentUrl() + ')');
+    this.echo("Setting application properties...");
+    if (settings.public) {
+      this.click('#jira-setupwizard-mode-public');
+    }
+    this.fill('form#jira-setupwizard', {
+      'title': settings.title
+    });
+    this.capture('protocol-2-application-props.png');
+    this.click('#jira-setupwizard-submit');
+  });
+  casper.then(function () {
+    this.waitForUrl(/\/secure\/SetupLicense!default\.jspa$/, function () {
+    }, 5000);
+  });
+
+  applyLicense();
+}
+
+function applyLicense() {
+  casper.then(function () {
+    assert(
+      this.getCurrentUrl().match(/.*\/secure\/SetupLicense!default\.jspa$/),
+      'Wrong state to add license (' + this.getCurrentUrl() + ')');
+
+    if (settings.license) {
+      this.echo('Setting up provided license...');
+      this.fill('form#importLicenseForm', {
+        'licenseKey': settings.license
+      }, true);
+      this.capture('protocol-3-license.png');
+    } else if (settings.trialLicense) {
+      this.echo("Generating trial license...");
+      this.click('#generate-mac-license');
+      this.waitForUrl(/^https:\/\/id.atlassian.com/, function () {
+        //login
+        this.fill('form#form-login', {
+          username: settings.trialLicense.user
+        });
+        this.click('#login-submit');
+        this.waitUntilVisible('#password', function () {
+          this.fill('form#form-login', {
+            password: settings.trialLicense.password
+          });
+          this.click('#login-submit');
+          this.waitForUrl(/^https:\/\/my.atlassian.com\/license\/evaluation/, function () {
+            this.capture('a.png');
+            this.fill('form[action="/license/evaluation"]', {
+              orgname: settings.trialLicense.organization
+            });
+            if (this.exists('#sixmontheval')) {
+              this.click('#sixmontheval');
+            }
+            this.capture('b.png');
+            if (this.exists('label[for="jira"]')) {
+              this.click('label[for="jira"]');
+            }
+            if (this.exists('label[for="jira-core"]')) {
+              this.click('label[for="jira-core"]');
+            }
+            if (this.exists('label[for="jira-servicedesk"]')) {
+              this.click('label[for="jira-servicedesk"]');
+            }
+            if (this.exists('label[for="jira-software"]')) {
+              this.click('label[for="jira-software"]');
+            }
+            this.capture('protocol-3-request-trial-license.png');
+            this.click('#generate-license');
+            this.waitForUrl(/^https:\/\/my.atlassian.com\/products\/index/, function () {
+              this.echo("Applying trial license...");
+              this.clickLabel('Yes');
+              this.waitForUrl(/\/secure\/SetupLicense!default\.jspa$/, function () {
+                this.capture('protocol-3-license.png');
+                const license = this.fetchText('#licenseKey');
+                this.echo('Generated trial license key: ' + license);
+                this.click('input[type="submit"]');
+              }, 20000);
+            });
+          }, 20000);
+        });
+      });
+    } else {
+      assert(false, 'Neither license nor trialLicense is set.');
+    }
+  });
+  casper.then(function () {
+    this.waitForUrl(/\/secure\/SetupAdminAccount!default\.jspa$/, function () {
+    }, 30000);
+  });
+
+  setupAdminAccount();
+}
+
+function setupAdminAccount() {
+  casper.then(function () {
+    assert(
+      this.getCurrentUrl().match(/.*\/secure\/SetupAdminAccount!default\.jspa$/),
+      'Wrong state to add license (' + this.getCurrentUrl() + ')');
+
+    const title = this.fetchText('.form-body h2').trim();
+    if (title === 'Set up email notifications') {
+      this.echo('Admin account is already set up. Skipping.')
+      return setupMail();
+    }
+
+    this.echo('Setting up the admin account...');
+    this.fill('#jira-setupwizard', {
+      fullname: settings.admin.displayName,
+      email: settings.admin.email,
+      username: settings.admin.user,
+      password: settings.admin.password,
+      confirm: settings.admin.password
+    });
+    this.capture('protocol-4-admin.png');
+    this.click('input[type="submit"]');
+
+    this.waitForSelectorTextChange('.form-body h2', function () {
+      setupMail();
+    }, 20000);
+  });
+}
+
+function setupMail() {
+  casper.then(function () {
+    this.echo('Setting up the mail...');
+
+    if (settings.mail) {
+      this.click('#jira-setupwizard-email-notifications-enabled');
+      this.fill('#jira-setupwizard', {
+        from: settings.mail.from,
+        prefix: settings.mail.prefix,
+        serverName: settings.mail.host,
+        port: settings.mail.port,
+        protocol: settings.mail.secure ? 'smtps' : 'smtp',
+        tlsRequired: settings.mail.secure,
+        username: settings.mail.user,
+        password: settings.mail.password
+      });
+      this.click('#jira-setupwizard-test-mailserver-connection');
+      this.waitForSelectorTextChange('#test-connection-messages', function () {
+        this.capture('protocol-5-mail.png');
+        const text = this.fetchText('#test-connection-messages').trim();
+        assert(
+          text.indexOf('The connection was successful.') === 0,
+          'Could not connect to the mail server: ' + text);
+        this.click('#jira-setupwizard-submit');
+      });
+    } else {
+      this.click('#jira-setupwizard-submit');
+    }
+  });
+  casper.then(function () {
+    this.waitForUrl(/\/secure\/WelcomeToJIRA!default\.jspa$/, function () {
+      this.capture('protocol-6-done.png');
+      this.echo('JIRA is now set up and ready to use.');
+    }, 120000);
+  });
+}
+
+casper.run();
