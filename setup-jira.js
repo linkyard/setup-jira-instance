@@ -219,9 +219,9 @@ function setupAdminAccount() {
     this.capture(logdir + '/protocol-4-admin.png');
     this.click('input[type="submit"]');
 
-    this.waitForSelectorTextChange('.form-body h2', function () {
+    this.waitForSelector('#jira-setupwizard-email-notifications-enabled', function () {
       setupMail();
-    }, onTimeout('Setup Mail page'), 20000);
+    }, onTimeout('Setup Mail page'), 30000);
   });
 }
 
@@ -255,7 +255,7 @@ function setupMail() {
     }
   });
   casper.then(function () {
-    this.waitForUrl(/\/secure\/WelcomeToJIRA\.jspa$/, function () {
+    this.waitForUrl(/\/secure\/(WelcomeToJIRA|Dashboard)\.jspa$/, function () {
       this.capture(logdir + '/protocol-6-done.png');
       this.echo('JIRA is now set up and ready to use.');
     }, onTimeout('Welcome to JIRA page'), 120000);
