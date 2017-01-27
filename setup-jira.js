@@ -190,7 +190,7 @@ function applyLicense() {
   });
   casper.then(function () {
     this.waitForUrl(/\/secure\/SetupAdminAccount!default\.jspa$/, function () {
-    }, onTimeout('Setup Admin Account page'), 60000);
+    }, onTimeout('Setup Admin Account page'), 200000);
   });
 
   setupAdminAccount();
