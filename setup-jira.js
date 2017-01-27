@@ -16,7 +16,7 @@ function assert(cond, message) {
   }
 }
 function onTimeout(waitingFor) {
-  return function() {
+  return function () {
     casper.capture(logdir + '/error.png');
     const url = this.getCurrentUrl();
     console.log('Timeout occurred on page ' + url + ' while ' + waitingFor);
@@ -62,7 +62,8 @@ function setupDatabase() {
 
   casper.then(function () {
     this.click('#jira-setup-mode-submit');
-    this.waitForUrl(/\/secure\/SetupDatabase!default\.jspa$/, onTimeout('DB Setup page'), 10000);
+    this.waitForUrl(/\/secure\/SetupDatabase!default\.jspa$/, function () {
+    }, onTimeout('DB Setup page'), 60000);
   });
 
   casper.then(function () {
@@ -117,7 +118,7 @@ function setupApplicationProperties() {
   });
   casper.then(function () {
     this.waitForUrl(/\/secure\/SetupLicense!default\.jspa$/, function () {
-    }, onTimeout('License page'), 20000 );
+    }, onTimeout('License page'), 20000);
   });
 
   applyLicense();
