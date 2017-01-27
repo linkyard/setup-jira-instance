@@ -8,4 +8,6 @@ COPY * /usr/src/app/
 WORKDIR /usr/src/app
 RUN yarn
 
+VOLUME [ "/usr/src/app/logs" ]
+
 CMD [ "node", "index.js" ]
