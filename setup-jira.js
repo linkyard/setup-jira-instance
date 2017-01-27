@@ -62,7 +62,7 @@ function setupDatabase() {
 
   casper.then(function () {
     this.click('#jira-setup-mode-submit');
-    this.waitForUrl(/\/secure\/SetupDatabase!default\.jspa$/, onTimeout, 10000);
+    this.waitForUrl(/\/secure\/SetupDatabase!default\.jspa$/, onTimeout('DB Setup page'), 10000);
   });
 
   casper.then(function () {
@@ -89,12 +89,12 @@ function setupDatabase() {
         text === 'The database connection test was successful.',
         'Could not connect to the database: ' + text);
       this.click('#jira-setup-database-submit');
-    }, onTimeout, 30000);
+    }, onTimeout('DB Connection Test'), 30000);
   });
 
   casper.then(function () {
     this.waitForUrl(/\/secure\/SetupApplicationProperties!default\.jspa$/, function () {
-    }, onTimeout, 120000);
+    }, onTimeout('Application properties page'), 120000);
   });
 
   setupApplicationProperties();
@@ -117,7 +117,7 @@ function setupApplicationProperties() {
   });
   casper.then(function () {
     this.waitForUrl(/\/secure\/SetupLicense!default\.jspa$/, function () {
-    }, onTimeout, 5000);
+    }, onTimeout('License page'), 20000 );
   });
 
   applyLicense();
@@ -178,18 +178,18 @@ function applyLicense() {
                 const license = this.fetchText('#licenseKey');
                 this.echo('Generated trial license key: ' + license);
                 this.click('input[type="submit"]');
-              }, onTimeout, 20000);
+              }, onTimeout('Setup License Page (apply trial)'), 120000);
             });
-          }, onTimeout, 20000);
+          }, onTimeout('Atlassian License page'), 20000);
         });
-      });
+      }, onTimeout('Atlassian Login page'), 10000);
     } else {
       assert(false, 'Neither license nor trialLicense is set.');
     }
   });
   casper.then(function () {
     this.waitForUrl(/\/secure\/SetupAdminAccount!default\.jspa$/, function () {
-    }, onTimeout, 30000);
+    }, onTimeout('Setup Admin Account page'), 60000);
   });
 
   setupAdminAccount();
@@ -203,7 +203,7 @@ function setupAdminAccount() {
 
     const title = this.fetchText('.form-body h2').trim();
     if (title === 'Set up email notifications') {
-      this.echo('Admin account is already set up. Skipping.')
+      this.echo('Admin account is already set up. Skipping.');
       return setupMail();
     }
 
@@ -220,7 +220,7 @@ function setupAdminAccount() {
 
     this.waitForSelectorTextChange('.form-body h2', function () {
       setupMail();
-    }, onTimeout, 20000);
+    }, onTimeout('Setup Mail page'), 20000);
   });
 }
 
@@ -248,7 +248,7 @@ function setupMail() {
           text.indexOf('The connection was successful.') === 0,
           'Could not connect to the mail server: ' + text);
         this.click('#jira-setupwizard-submit');
-      }, onTimeout, 30000);
+      }, onTimeout('Test Mail Server connection'), 30000);
     } else {
       this.click('#jira-setupwizard-submit');
     }
@@ -257,7 +257,7 @@ function setupMail() {
     this.waitForUrl(/\/secure\/WelcomeToJIRA\.jspa$/, function () {
       this.capture(logdir + '/protocol-6-done.png');
       this.echo('JIRA is now set up and ready to use.');
-    }, onTimeout, 120000);
+    }, onTimeout('Welcome to JIRA page'), 120000);
   });
 }
 
