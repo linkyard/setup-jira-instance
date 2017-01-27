@@ -1,6 +1,8 @@
 const spawn = require('child_process').spawn;
 const mkdirp = require('mkdirp');
+const request = require('request');
 const createWriteStream = require('fs').createWriteStream;
+const retry = require('retry');
 
 function settingsFromEnv() {
   const settings = {};
@@ -53,17 +55,52 @@ const logDir = process.cwd() + '/logs/' + new Date().toISOString();
 mkdirp.sync(logDir);
 const log = createWriteStream(logDir + '/log.txt', {flags: 'a'});
 
-const casper = spawn(__dirname + '/node_modules/casperjs/bin/casperjs', [
-  // '--log-level=debug', '--verbose',
-  'setup-jira.js',
-  logDir, JSON.stringify(settings)]);
+function waitForJiraStart(cont, error) {
+  const operation = retry.operation({
+    retries: 100,
+    factor: 2,
+    minTimeout: 500,
+    maxTimeout: 3 * 1000,
+    randomize: false
+  });
 
-casper.stdout.pipe(process.stdout);
-casper.stdout.pipe(log);
-casper.stderr.pipe(process.stderr);
-casper.stderr.pipe(log);
+  operation.attempt(function () {
+    request({
+      followAllRedirects: true,
+      url: settings.url,
+      timeout: 2000
+    }, function (err, response, body) {
+      const failure = err || response.statusCode !== 200
+      if (operation.retry(failure)) {
+        console.log('Jira not ready yet (error: ' + err + ', status:' + (response && response.statusCode) + '), retrying..');
+        return;
+      }
+      if (failure) {
+        console.log('Could not connect to JIRA: error: ' + err + ', status:' + (response && response.statusCode));
+        return error();
+      }
+      cont();
+    });
+  })
+}
 
-casper.on('close', function (code) {
+waitForJiraStart(function () {
+  const casper = spawn(__dirname + '/node_modules/casperjs/bin/casperjs', [
+    '--log-level=debug', '--verbose',
+    'setup-jira.js',
+    logDir, JSON.stringify(settings)]);
+
+  casper.stdout.pipe(process.stdout);
+  casper.stdout.pipe(log);
+  casper.stderr.pipe(process.stderr);
+  casper.stderr.pipe(log);
+
+  casper.on('close', function (code) {
+    log.close();
+    process.exit(code);
+  });
+}, function () {
+  log.write('Could not connect to jira at ' + settings.url);
   log.close();
-  process.exit(code);
+  process.exit(2);
 });
