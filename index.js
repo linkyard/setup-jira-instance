@@ -1,4 +1,6 @@
 const spawn = require('child_process').spawn;
+const mkdirp = require('mkdirp');
+const createWriteStream = require('fs').createWriteStream;
 
 // const exampleSettings = {
 //   url: 'https://jsd.test.linkyard.ch/',
@@ -74,16 +76,29 @@ function settingsFromEnv() {
   return settings;
 }
 
+var settings;
+if (process.argv && process.argv[2]) {
+  settings = require('./' + process.argv[2]);
+} else {
+  settings = settingsFromEnv();
+}
 
-const settings = settingsFromEnv();
 
-const casper = spawn('node_modules/casperjs/bin/casperjs', [
+const logDir = process.cwd() + '/logs/' + new Date().toISOString();
+mkdirp.sync(logDir);
+const log = createWriteStream(logDir + '/log.txt', {flags: 'a'});
+
+const casper = spawn(__dirname + '/node_modules/casperjs/bin/casperjs', [
   // '--log-level=debug', '--verbose',
-  'setup-jira.js', JSON.stringify(settings)]);
+  'setup-jira.js',
+  logDir, JSON.stringify(settings)]);
 
 casper.stdout.pipe(process.stdout);
+casper.stdout.pipe(log);
 casper.stderr.pipe(process.stderr);
+casper.stderr.pipe(log);
 
 casper.on('close', function (code) {
+  log.close();
   process.exit(code);
 });

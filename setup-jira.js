@@ -4,16 +4,25 @@ casper.on('error', function (err) {
 });
 
 
-const config = casper.cli.args[0];
+const logdir = casper.cli.args[0];
+const config = casper.cli.args[1];
 const settings = JSON.parse(config);
 
 function assert(cond, message) {
   if (!cond) {
+    casper.capture(logdir + '/error.png');
     console.log(message);
-    throw new Error('Assertion failed: ' + message);
+    casper.exit(1);
   }
 }
-
+function onTimeout(waitingFor) {
+  return function() {
+    casper.capture(logdir + '/error.png');
+    const url = this.getCurrentUrl();
+    console.log('Timeout occurred on page ' + url + ' while ' + waitingFor);
+    casper.exit(1);
+  }
+}
 
 
 if (!settings || !settings.url) {
@@ -32,6 +41,7 @@ casper.then(function () {
   } else if (url.match(/\/secure\/SetupAdminAccount!default\.jspa$/)) {
     setupAdminAccount();
   } else if (url.match(/\/secure\/Dashboard\.jspa$/)) {
+    casper.capture(logdir + '/protocol-6-done.png');
     this.echo('This jira instance is already set up, did not change the configuration.')
   } else {
     assert(false, 'Invalid initial state of jira: ' + url);
@@ -52,7 +62,7 @@ function setupDatabase() {
 
   casper.then(function () {
     this.click('#jira-setup-mode-submit');
-    this.waitForUrl(/\/secure\/SetupDatabase!default\.jspa$/);
+    this.waitForUrl(/\/secure\/SetupDatabase!default\.jspa$/, onTimeout, 10000);
   });
 
   casper.then(function () {
@@ -73,18 +83,18 @@ function setupDatabase() {
 
   casper.then(function () {
     this.waitForSelectorTextChange('.jira-setup-global-messages', function () {
-      this.capture('protocol-1-db.png');
+      this.capture(logdir + '/protocol-1-db.png');
       const text = this.fetchText('.jira-setup-global-messages');
       assert(
         text === 'The database connection test was successful.',
         'Could not connect to the database: ' + text);
       this.click('#jira-setup-database-submit');
-    });
+    }, onTimeout, 30000);
   });
 
   casper.then(function () {
     this.waitForUrl(/\/secure\/SetupApplicationProperties!default\.jspa$/, function () {
-    }, 120000);
+    }, onTimeout, 120000);
   });
 
   setupApplicationProperties();
@@ -102,12 +112,12 @@ function setupApplicationProperties() {
     this.fill('form#jira-setupwizard', {
       'title': settings.title
     });
-    this.capture('protocol-2-application-props.png');
+    this.capture(logdir + '/protocol-2-application-props.png');
     this.click('#jira-setupwizard-submit');
   });
   casper.then(function () {
     this.waitForUrl(/\/secure\/SetupLicense!default\.jspa$/, function () {
-    }, 5000);
+    }, onTimeout, 5000);
   });
 
   applyLicense();
@@ -124,7 +134,7 @@ function applyLicense() {
       this.fill('form#importLicenseForm', {
         'licenseKey': settings.license
       }, true);
-      this.capture('protocol-3-license.png');
+      this.capture(logdir + '/protocol-3-license.png');
     } else if (settings.trialLicense) {
       this.echo("Generating trial license...");
       this.click('#generate-mac-license');
@@ -140,14 +150,12 @@ function applyLicense() {
           });
           this.click('#login-submit');
           this.waitForUrl(/^https:\/\/my.atlassian.com\/license\/evaluation/, function () {
-            this.capture('a.png');
             this.fill('form[action="/license/evaluation"]', {
               orgname: settings.trialLicense.organization
             });
             if (this.exists('#sixmontheval')) {
               this.click('#sixmontheval');
             }
-            this.capture('b.png');
             if (this.exists('label[for="jira"]')) {
               this.click('label[for="jira"]');
             }
@@ -160,19 +168,19 @@ function applyLicense() {
             if (this.exists('label[for="jira-software"]')) {
               this.click('label[for="jira-software"]');
             }
-            this.capture('protocol-3-request-trial-license.png');
+            this.capture(logdir + '/protocol-3-request-trial-license.png');
             this.click('#generate-license');
             this.waitForUrl(/^https:\/\/my.atlassian.com\/products\/index/, function () {
               this.echo("Applying trial license...");
               this.clickLabel('Yes');
               this.waitForUrl(/\/secure\/SetupLicense!default\.jspa$/, function () {
-                this.capture('protocol-3-license.png');
+                this.capture(logdir + '/protocol-3-license.png');
                 const license = this.fetchText('#licenseKey');
                 this.echo('Generated trial license key: ' + license);
                 this.click('input[type="submit"]');
-              }, 20000);
+              }, onTimeout, 20000);
             });
-          }, 20000);
+          }, onTimeout, 20000);
         });
       });
     } else {
@@ -181,7 +189,7 @@ function applyLicense() {
   });
   casper.then(function () {
     this.waitForUrl(/\/secure\/SetupAdminAccount!default\.jspa$/, function () {
-    }, 30000);
+    }, onTimeout, 30000);
   });
 
   setupAdminAccount();
@@ -207,12 +215,12 @@ function setupAdminAccount() {
       password: settings.admin.password,
       confirm: settings.admin.password
     });
-    this.capture('protocol-4-admin.png');
+    this.capture(logdir + '/protocol-4-admin.png');
     this.click('input[type="submit"]');
 
     this.waitForSelectorTextChange('.form-body h2', function () {
       setupMail();
-    }, 20000);
+    }, onTimeout, 20000);
   });
 }
 
@@ -234,22 +242,22 @@ function setupMail() {
       });
       this.click('#jira-setupwizard-test-mailserver-connection');
       this.waitForSelectorTextChange('#test-connection-messages', function () {
-        this.capture('protocol-5-mail.png');
+        this.capture(logdir + '/protocol-5-mail.png');
         const text = this.fetchText('#test-connection-messages').trim();
         assert(
           text.indexOf('The connection was successful.') === 0,
           'Could not connect to the mail server: ' + text);
         this.click('#jira-setupwizard-submit');
-      });
+      }, onTimeout, 30000);
     } else {
       this.click('#jira-setupwizard-submit');
     }
   });
   casper.then(function () {
     this.waitForUrl(/\/secure\/WelcomeToJIRA!default\.jspa$/, function () {
-      this.capture('protocol-6-done.png');
+      this.capture(logdir + '/protocol-6-done.png');
       this.echo('JIRA is now set up and ready to use.');
-    }, 120000);
+    }, onTimeout, 120000);
   });
 }
 

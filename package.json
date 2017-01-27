@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "casperjs": "^1.1.3",
+    "mkdirp": "^0.5.1",
     "phantomjs": "^2.1.7"
   }
 }
