@@ -254,7 +254,7 @@ function setupMail() {
     }
   });
   casper.then(function () {
-    this.waitForUrl(/\/secure\/WelcomeToJIRA!default\.jspa$/, function () {
+    this.waitForUrl(/\/secure\/WelcomeToJIRA\.jspa$/, function () {
       this.capture(logdir + '/protocol-6-done.png');
       this.echo('JIRA is now set up and ready to use.');
     }, onTimeout, 120000);
