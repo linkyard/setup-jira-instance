@@ -1,7 +1,10 @@
 Setup JIRA Instance
 ===================
 
-Automatically configure a new JIRA instance with database, license and mail.
+Automatically configure a new JIRA instance with database, license and mail. This is useful
+for fully automated deployments such as inside a Kubernetes cluster.
+
+To deploy jira itself please use the [great images by cptactionhank](https://hub.docker.com/r/cptactionhank/atlassian-jira/).
 
 Usage:
 `docker run -e <...> linkyard/setup-jira-instance`
@@ -31,3 +34,71 @@ Where the environment variables are:
 * `MAIL_SECURE`: Use secure (TLS) mail. Defaults to `true'.
 * `MAIL_USER`: User for the authentication with the mail server (optional)
 * `MAIL_PASSWORD`: Password for the authentication with the mail server (optional)
+
+
+
+Example kubernetes job definition
+
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: setup-jira
+    spec:
+      template:
+        metadata:
+          name: setup-jira
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: setup-jira
+            image: linkyard/setup-jira-instance:latest
+            imagePullPolicy: Always
+            env:
+            - name: JIRA_URL
+              value: https://my-jira-instance.com
+            - name: JIRA_TITLE
+              value: The name that my jira instance should have
+            - name: ATLASSIAN_USER
+              value: myaccount@email.com
+            - name: ATLASSIAN_PASSWORD
+              value: secret
+            - name: ATLASSIAN_ORG
+              value: My Company
+            - name: PUBLIC_SIGNUP
+              value: "false"
+            - name: ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: jira-secret
+                  key: adminUser
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jira-secret
+                  key: adminPassword
+            - name: ADMIN_EMAIL
+              value: admin@mycompany.com
+            - name: DB_TYPE
+              value: PostgreSQL
+            - name: DB_HOST
+              value: postgres
+            - name: DB_POST
+              value: "5432"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+            - name: MAIL_PREFIX
+              value "[JIRA]"
+            - name: MAIL_HOST
+              value: smtp-relay.gmail.com
+            - name: MAIL_PORT
+              value: "465"
+
+Enjoy!
