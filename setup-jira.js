@@ -40,7 +40,7 @@ casper.then(function () {
     setupApplicationProperties();
   } else if (url.match(/\/secure\/SetupAdminAccount!default\.jspa$/)) {
     setupAdminAccount();
-  } else if (url.match(/\/secure\/Dashboard\.jspa$/)) {
+  } else if (url.match(/\/secure\/Dashboard\.jspa$/) || url.indexOf(settings.externalLogin) === 0) {
     casper.capture(logdir + '/protocol-6-done.png');
     this.echo('This jira instance is already set up, did not change the configuration.')
   } else {
