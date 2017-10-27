@@ -40,7 +40,9 @@ casper.then(function () {
     setupApplicationProperties();
   } else if (url.match(/\/secure\/SetupAdminAccount!default\.jspa$/)) {
     setupAdminAccount();
-  } else if (url.match(/\/secure\/Dashboard\.jspa$/) || url.indexOf(settings.externalLogin) === 0) {
+  } else if (
+    url.match(/\/secure\/WelcomeToJIRA|Dashboard|PostUpgradeLanding\.jspa$/) ||
+    url.indexOf(settings.externalLogin) === 0) {
     casper.capture(logdir + '/protocol-6-done.png');
     this.echo('This jira instance is already set up, did not change the configuration.')
   } else {
@@ -255,7 +257,7 @@ function setupMail() {
     }
   });
   casper.then(function () {
-    this.waitForUrl(/\/secure\/(WelcomeToJIRA|Dashboard)\.jspa$/, function () {
+    this.waitForUrl(/\/secure\/(WelcomeToJIRA|Dashboard|PostUpgradeLanding)\.jspa$/, function () {
       this.capture(logdir + '/protocol-6-done.png');
       this.echo('JIRA is now set up and ready to use.');
     }, onTimeout('Welcome to JIRA page'), 120000);
