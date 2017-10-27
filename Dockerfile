@@ -1,4 +1,4 @@
-FROM node:8.8.1
+FROM node:7.4.0
 MAINTAINER Mario Siegenthaler <mario.siegenthaler@linkyard.ch>
 
 RUN npm install -g -s yarn
