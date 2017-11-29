@@ -10,6 +10,8 @@ function settingsFromEnv() {
   settings.title = process.env['JIRA_TITLE'];
   settings.public = process.env['PUBLIC_SIGNUP'] === 'true';
 
+  settings.externalLogin = process.env['EXTERNAL_LOGIN'];
+
   settings.license = process.env['LICENSE'];
   settings.trialLicense = {};
   settings.trialLicense.user = process.env['ATLASSIAN_USER'];
