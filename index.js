@@ -38,7 +38,7 @@ function settingsFromEnv() {
     settings.mail.prefix = process.env['MAIL_PREFIX'] || '[JIRA]';
     settings.mail.host = process.env['MAIL_HOST'];
     settings.mail.port = process.env['MAIL_PORT'] || 465;
-    settings.mail.secure = process.env['MAIL_SECURE'] !== 'false' || true;
+    settings.mail.secure = process.env['MAIL_SECURE'] !== 'false';
     settings.mail.user = process.env['MAIL_USER'] || '';
     settings.mail.password = process.env['MAIL_PASSWORD'] || '';
   }
